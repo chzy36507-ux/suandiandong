@@ -100,20 +100,21 @@ def crawl_province_electricity(province):
     """爬取单个省份的电价数据"""
     print(f'\n[{province}] 开始搜索电价数据...')
 
-    # 搜索策略：多关键词组合
+    # 搜索策略：多关键词组合（精准搜索含价格数字的内容）
     search_queries = [
-        f'{province}工商业分时电价 峰谷平 2024 2025',
-        f'{province}电网分时电价标准 峰时谷时',
-        f'{province}发改委电价调整 工商业用电',
+        f'{province}工商业电价 峰时 元/千瓦时 2024 2025',
+        f'{province}分时电价标准 峰谷平 元/度 工商业',
+        f'{province}电网代理购电 峰谷电价 元/kWh',
     ]
 
     all_docs = []
     for query in search_queries[:2]:  # 最多搜2次
-        docs = prosearch(query, industry='gov')
+        # 先不限行业搜索（覆盖更广）
+        docs = prosearch(query)
         if not docs:
-            docs = prosearch(query)
+            docs = prosearch(query, industry='gov')
         all_docs.extend(docs)
-        if len(all_docs) >= 3:
+        if len(all_docs) >= 5:
             break
         time.sleep(1)
 
