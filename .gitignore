@@ -1,10 +1,12 @@
 # 算电通 - 本地数据和敏感配置（不提交）
-data/.email_config
-data/*.db
-data/*.db-shm
-data/*.db-wal
+data/
 logs/
 __pycache__/
 *.pyc
 *.pyo
 .env
+*.db
+*.db-shm
+*.db-wal
+
+# GitHub Actions 会自动生成 data_output，不需要忽略

@@ -1,0 +1,73 @@
+name: 更新全国电价数据
+
+on:
+  schedule:
+    # 每12天凌晨2点UTC（北京时间10点）运行
+    - cron: '0 2 1,13,25 * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  crawl-electricity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install requests beautifulsoup4
+
+      - name: 运行电价爬虫
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: python scripts/electricity_cloud.py
+
+      - name: 提交数据更新
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data_output/electricity.json
+          git diff --staged --quiet || git commit -m "data: 自动更新全国电价数据 $(date -u '+%Y-%m-%d')"
+          git push
+
+      - name: 发送邮件通知
+        if: always()
+        env:
+          QQ_EMAIL: ch132456@qq.com
+          QQ_AUTH_CODE: ${{ secrets.QQ_AUTH_CODE }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          python -c "
+          import smtplib, os
+          from email.mime.text import MIMEText
+          from email.mime.multipart import MIMEMultipart
+          from datetime import datetime
+
+          status = os.environ.get('JOB_STATUS', 'unknown')
+          email = os.environ.get('QQ_EMAIL')
+          auth = os.environ.get('QQ_AUTH_CODE')
+          if not auth:
+              print('邮件授权码未配置，跳过')
+              exit(0)
+
+          icon = '✅' if status == 'success' else '❌'
+          msg = MIMEMultipart('alternative')
+          msg['Subject'] = f'[算电通] {icon} 全国电价数据更新 - {datetime.utcnow().strftime(\"%Y-%m-%d\")}'
+          msg['From'] = email
+          msg['To'] = email
+          body = f'<h2>{icon} 算电通 - 全国电价数据更新</h2><p>状态: {status}</p><p>时间: {datetime.utcnow().strftime(\"%Y-%m-%d %H:%M UTC\")}</p><p>数据已更新到 GitHub，前端将自动同步。</p>'
+          msg.attach(MIMEText(body, 'html', 'utf-8'))
+          with smtplib.SMTP_SSL('smtp.qq.com', 465) as s:
+              s.login(email, auth)
+              s.sendmail(email, [email], msg.as_string())
+          print('邮件发送成功')
+          "

@@ -1,0 +1,28 @@
+{
+  "updated_at": "2026-03-31T04:45:54Z",
+  "usd_to_cny": 7.25,
+  "data": [
+    {
+      "id": 2,
+      "model": "deepseek-chat",
+      "input_usd": 0.28,
+      "output_usd": 0.42,
+      "cached_input_usd": 0.028,
+      "input_cny": 2.03,
+      "output_cny": 3.045,
+      "cached_input_cny": 0.203,
+      "updated_at": "2026-03-31 11:53:35"
+    },
+    {
+      "id": 3,
+      "model": "deepseek-reasoner",
+      "input_usd": 0.28,
+      "output_usd": 0.42,
+      "cached_input_usd": 0.028,
+      "input_cny": 2.03,
+      "output_cny": 3.045,
+      "cached_input_cny": 0.203,
+      "updated_at": "2026-03-31 11:53:35"
+    }
+  ]
+}
