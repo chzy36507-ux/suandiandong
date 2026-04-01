@@ -39,6 +39,57 @@ def init_db():
         )
     ''')
 
+    # 全国居民分时电价表（新增）
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS residential_electricity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            province TEXT NOT NULL UNIQUE,
+            peak_price REAL,
+            flat_price REAL,
+            valley_price REAL,
+            deep_valley_price REAL,
+            peak_hours TEXT,
+            flat_hours TEXT,
+            valley_hours TEXT,
+            note TEXT,
+            source TEXT,
+            effective_date TEXT,
+            updated_at TEXT DEFAULT (datetime('now','localtime')),
+            raw_data TEXT
+        )
+    ''')
+
+    # 绿电知识库（新增，待填充）
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS green_energy_knowledge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            province TEXT NOT NULL UNIQUE,
+            energy_type TEXT,
+            peak_hours_start TEXT,
+            peak_hours_end TEXT,
+            peak_hours_note TEXT,
+            best_months TEXT,
+            season_note TEXT,
+            confidence TEXT,
+            update_date TEXT
+        )
+    ''')
+
+    # 提醒记录表（新增）
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            province TEXT NOT NULL,
+            reminder_time TEXT,
+            user_id TEXT,
+            channel TEXT,
+            status TEXT DEFAULT 'active',
+            last_triggered TEXT,
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            note TEXT
+        )
+    ''')
+
     # DeepSeek API 价格表
     c.execute('''
         CREATE TABLE IF NOT EXISTS deepseek_prices (
@@ -83,10 +134,9 @@ def init_db():
 
 def upsert_electricity_price(province, user_type, peak, normal, valley, deep_valley,
                               peak_hours, normal_hours, valley_hours, source, effective_date, raw_data):
-    """插入或更新电价数据"""
+    """插入或更新电价数据（工商业）"""
     conn = get_conn()
     c = conn.cursor()
-    # 先查是否存在
     c.execute('SELECT id FROM electricity_prices WHERE province=? AND user_type=?', (province, user_type))
     row = c.fetchone()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -109,6 +159,94 @@ def upsert_electricity_price(province, user_type, peak, normal, valley, deep_val
               peak_hours, normal_hours, valley_hours, source, effective_date, now, raw_data))
     conn.commit()
     conn.close()
+
+
+def upsert_residential_electricity(province, peak, flat, valley, deep_valley,
+                                    peak_hours, flat_hours, valley_hours,
+                                    note, source, effective_date, raw_data):
+    """插入或更新居民电价数据"""
+    conn = get_conn()
+    c = conn.cursor()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute('SELECT id FROM residential_electricity WHERE province=?', (province,))
+    row = c.fetchone()
+    if row:
+        c.execute('''
+            UPDATE residential_electricity SET
+                peak_price=?, flat_price=?, valley_price=?, deep_valley_price=?,
+                peak_hours=?, flat_hours=?, valley_hours=?,
+                note=?, source=?, effective_date=?, updated_at=?, raw_data=?
+            WHERE province=?
+        ''', (peak, flat, valley, deep_valley,
+              peak_hours, flat_hours, valley_hours,
+              note, source, effective_date, now, raw_data, province))
+    else:
+        c.execute('''
+            INSERT INTO residential_electricity
+                (province, peak_price, flat_price, valley_price, deep_valley_price,
+                 peak_hours, flat_hours, valley_hours,
+                 note, source, effective_date, updated_at, raw_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (province, peak, flat, valley, deep_valley,
+              peak_hours, flat_hours, valley_hours,
+              note, source, effective_date, now, raw_data))
+    conn.commit()
+    conn.close()
+    print(f"    [DB] {province} 居民电价已写入")
+
+
+def get_residential_electricity(province=None):
+    """获取居民电价数据，可指定省份"""
+    conn = get_conn()
+    c = conn.cursor()
+    if province:
+        c.execute('SELECT * FROM residential_electricity WHERE province=?', (province,))
+    else:
+        c.execute('SELECT * FROM residential_electricity ORDER BY province')
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def upsert_green_energy_knowledge(province, energy_type, peak_start, peak_end,
+                                   peak_note, best_months, season_note, confidence):
+    """插入或更新绿电知识库"""
+    conn = get_conn()
+    c = conn.cursor()
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute('SELECT id FROM green_energy_knowledge WHERE province=?', (province,))
+    row = c.fetchone()
+    if row:
+        c.execute('''
+            UPDATE green_energy_knowledge SET
+                energy_type=?, peak_hours_start=?, peak_hours_end=?, peak_hours_note=?,
+                best_months=?, season_note=?, confidence=?, update_date=?
+            WHERE province=?
+        ''', (energy_type, peak_start, peak_end, peak_note,
+              best_months, season_note, confidence, now, province))
+    else:
+        c.execute('''
+            INSERT INTO green_energy_knowledge
+                (province, energy_type, peak_hours_start, peak_hours_end, peak_hours_note,
+                 best_months, season_note, confidence, update_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (province, energy_type, peak_start, peak_end, peak_note,
+              best_months, season_note, confidence, now))
+    conn.commit()
+    conn.close()
+
+
+def get_green_energy_knowledge(province=None):
+    """获取绿电知识库"""
+    conn = get_conn()
+    c = conn.cursor()
+    if province:
+        c.execute('SELECT * FROM green_energy_knowledge WHERE province=?', (province,))
+    else:
+        c.execute('SELECT * FROM green_energy_knowledge ORDER BY province')
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
 
 def upsert_deepseek_price(model, input_usd, output_usd, cached_input_usd, usd_to_cny=7.25):
     """更新DeepSeek价格"""
